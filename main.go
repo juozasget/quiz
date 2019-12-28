@@ -3,10 +3,12 @@ package main
 import(
 	"bufio"
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"time"
 )
 
 type Qst struct {
@@ -44,19 +46,37 @@ func readFile(filename string) []Qst{
 }
 
 func main() {
+	userInput := ""
+	var filename = flag.String("file", "problems.csv", "The problems csv file")
+	var timeSeconds = flag.Int("time", 30, "Timer value in seconds")
+	flag.Parse()
+
 	fmt.Println("Welcome the Quiz!")
-	questions := readFile("problems.csv")
-	var correct, incorrect int
-	for _, question := range questions {
-		fmt.Println(question.question)
-		userInput := ""
-		_, err := fmt.Scanln(&userInput)
-		check(err)
-		if userInput == question.ans {
-			correct++
-		} else {
-			incorrect++
+	questions := readFile(*filename)
+	fmt.Println(*filename)
+	fmt.Println("Press enter to start [ENTER]")
+	fmt.Scanln(&userInput)
+	timer := time.NewTimer(time.Duration(*timeSeconds) * time.Second)
+	var correct int
+	for i, question := range questions {
+		fmt.Printf("Problem #%v: %v\n", i+1, question.question)
+		answerCh := make(chan string)
+		go func() {
+			var userInput string
+			_, err := fmt.Scanln(&userInput)
+			check(err)
+			answerCh <- userInput
+		}()
+
+		select {
+		case <-timer.C:
+			fmt.Printf("Time expired! You got %v correct out of %v.\n", correct, len(questions))
+			return
+		case userInput := <-answerCh:
+			if userInput == question.ans {
+				correct++
+			}
 		}
 	}
-	fmt.Printf("You got %v correct and %v incorrect.", correct, incorrect)
+	fmt.Printf("You got %v correct out of %v.\n", correct, len(questions))
 }
